@@ -629,12 +629,39 @@ const InvoiceApp: React.FC = () => {
                           {currentInvoice.satirlar.map((line) => (
                             <tr key={line.id} className="border-b">
                               <td className="p-2">
-                                <Input 
-                                  value={line.urunAdi}
-                                  onChange={(e) => updateInvoiceLine(line.id, 'urunAdi', e.target.value)}
-                                  placeholder="Ürün/hizmet adı"
-                                  className="min-w-[200px]"
-                                />
+                                <div className="space-y-2">
+                                  <Select 
+                                    value={line.urunAdi}
+                                    onValueChange={(productName) => {
+                                      const selectedProduct = products.find(p => p.ad === productName);
+                                      if (selectedProduct) {
+                                        updateInvoiceLine(line.id, 'urunAdi', selectedProduct.ad);
+                                        updateInvoiceLine(line.id, 'birim', selectedProduct.birim);
+                                        updateInvoiceLine(line.id, 'birimFiyat', selectedProduct.birimFiyat);
+                                        updateInvoiceLine(line.id, 'kdvOran', selectedProduct.kdvOran);
+                                      } else {
+                                        updateInvoiceLine(line.id, 'urunAdi', productName);
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger className="min-w-[200px]">
+                                      <SelectValue placeholder="Ürün seçin veya manuel girin" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {products.map((product) => (
+                                        <SelectItem key={product.id} value={product.ad}>
+                                          {product.ad} - {formatTurkishCurrency(product.birimFiyat)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Input 
+                                    value={line.urunAdi}
+                                    onChange={(e) => updateInvoiceLine(line.id, 'urunAdi', e.target.value)}
+                                    placeholder="Manuel ürün/hizmet adı"
+                                    className="min-w-[200px]"
+                                  />
+                                </div>
                               </td>
                               <td className="p-2">
                                 <Input 
@@ -887,47 +914,67 @@ const InvoiceApp: React.FC = () => {
           </TabsContent>
 
           {/* Drafts Tab */}
-          <TabsContent value="taslaklar" className="animate-slide-up">
+          <TabsContent value="taslaklar" className="space-y-6 animate-slide-up">
             <Card className="shadow-soft">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Save className="w-5 h-5 text-primary" />
-                  Taslak Faturalar
+                  Kaydedilen Taslaklar
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {invoices.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Henüz kaydedilmiş fatura bulunmuyor.</p>
+                    <p>Henüz kaydedilmiş taslak yok.</p>
+                    <p className="text-sm">Fatura sekmesinden taslak kaydedebilirsiniz.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {invoices.map((invoice) => (
-                      <div key={invoice.id} className="border rounded-lg p-4 hover:shadow-business transition-smooth">
+                      <div key={invoice.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium">{invoice.faturaNo}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {invoice.alici.unvanVeyaAdSoyad} - {new Date(invoice.tarih).toLocaleDateString('tr-TR')}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant={invoice.durum === 'tamamlandi' ? 'default' : 'secondary'}>
+                                {invoice.durum === 'tamamlandi' ? 'Tamamlandı' : 'Taslak'}
+                              </Badge>
+                              <span className="font-medium">{invoice.faturaNo || 'Henüz numara verilmemiş'}</span>
                             </div>
-                            <div className="text-lg font-bold turkish-currency text-primary">
-                              {formatTurkishCurrency(invoice.genelToplam)}
+                            <div className="text-sm text-muted-foreground space-y-1">
+                              <div>Müşteri: {invoice.alici.unvanVeyaAdSoyad}</div>
+                              <div>Tarih: {new Date(invoice.tarih).toLocaleDateString('tr-TR')}</div>
+                              <div>Tutar: <span className="turkish-currency font-medium">{formatTurkishCurrency(invoice.genelToplam)}</span></div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={invoice.durum === 'tamamlandi' ? 'default' : 'secondary'}>
-                              {invoice.durum === 'tamamlandi' ? 'Tamamlandı' : 'Taslak'}
-                            </Badge>
+                          <div className="flex gap-2">
                             <Button 
                               variant="outline" 
                               size="sm"
                               onClick={() => {
                                 setCurrentInvoice(invoice);
                                 setActiveTab('fatura');
+                                toast({
+                                  title: "Taslak Yüklendi",
+                                  description: "Taslak düzenleme için yüklendi."
+                                });
                               }}
                             >
+                              <Eye className="w-4 h-4" />
                               Düzenle
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              onClick={() => {
+                                setInvoices(prev => prev.filter(inv => inv.id !== invoice.id));
+                                toast({
+                                  title: "Taslak Silindi",
+                                  description: "Taslak başarıyla silindi."
+                                });
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
@@ -939,44 +986,315 @@ const InvoiceApp: React.FC = () => {
             </Card>
           </TabsContent>
 
-          {/* Products Tab */}
-          <TabsContent value="urunler" className="animate-slide-up">
+          {/* Products/Services Tab */}
+          <TabsContent value="urunler" className="space-y-6 animate-slide-up">
             <Card className="shadow-soft">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-accent" />
-                  Ürün / Hizmet Kartları
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="w-5 h-5 text-primary" />
+                    Ürün/Hizmet Kartları
+                  </CardTitle>
+                  <Button variant="invoice" onClick={() => {
+                    const newProduct: Product = {
+                      id: Date.now().toString(),
+                      ad: '',
+                      birim: 'Adet',
+                      birimFiyat: 0,
+                      kdvOran: company.varsayilanKdv
+                    };
+                    setProducts(prev => [...prev, newProduct]);
+                  }}>
+                    <Plus className="w-4 h-4" />
+                    Yeni Ürün/Hizmet
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Ürün/hizmet yönetimi geliştirilmekte...</p>
-                </div>
+                {products.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Henüz ürün/hizmet kartı eklenmemiş.</p>
+                    <p className="text-sm">Başlamak için "Yeni Ürün/Hizmet" butonunu kullanın.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {products.map((product) => (
+                      <Card key={product.id} className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <Label>Ürün/Hizmet Adı</Label>
+                            <Input 
+                              value={product.ad}
+                              onChange={(e) => 
+                                setProducts(prev => prev.map(p => 
+                                  p.id === product.id ? { ...p, ad: e.target.value } : p
+                                ))
+                              }
+                              placeholder="Danışmanlık Hizmeti"
+                            />
+                          </div>
+                          <div>
+                            <Label>Birim</Label>
+                            <Select 
+                              value={product.birim} 
+                              onValueChange={(value) => 
+                                setProducts(prev => prev.map(p => 
+                                  p.id === product.id ? { ...p, birim: value } : p
+                                ))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Adet">Adet</SelectItem>
+                                <SelectItem value="Saat">Saat</SelectItem>
+                                <SelectItem value="Gün">Gün</SelectItem>
+                                <SelectItem value="Kg">Kg</SelectItem>
+                                <SelectItem value="Lt">Lt</SelectItem>
+                                <SelectItem value="M">M</SelectItem>
+                                <SelectItem value="M2">M²</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Birim Fiyat</Label>
+                            <Input 
+                              type="number"
+                              value={product.birimFiyat}
+                              onChange={(e) => 
+                                setProducts(prev => prev.map(p => 
+                                  p.id === product.id ? { ...p, birimFiyat: parseFloat(e.target.value) || 0 } : p
+                                ))
+                              }
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+                          <div>
+                            <Label>KDV Oranı (%)</Label>
+                            <div className="flex gap-2">
+                              <Select 
+                                value={product.kdvOran.toString()} 
+                                onValueChange={(value) => 
+                                  setProducts(prev => prev.map(p => 
+                                    p.id === product.id ? { ...p, kdvOran: parseInt(value) } : p
+                                  ))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="0">0</SelectItem>
+                                  <SelectItem value="1">1</SelectItem>
+                                  <SelectItem value="10">10</SelectItem>
+                                  <SelectItem value="20">20</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button 
+                                variant="destructive" 
+                                size="sm"
+                                onClick={() => 
+                                  setProducts(prev => prev.filter(p => p.id !== product.id))
+                                }
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Customers Tab */}
-          <TabsContent value="musteriler" className="animate-slide-up">
+          <TabsContent value="musteriler" className="space-y-6 animate-slide-up">
             <Card className="shadow-soft">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-primary" />
-                  Müşteri Kartları
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary" />
+                    Müşteri Kartları
+                  </CardTitle>
+                  <Button variant="invoice" onClick={() => {
+                    const newCustomer: Customer = {
+                      id: Date.now().toString(),
+                      tip: 'kurumsal',
+                      unvanVeyaAdSoyad: '',
+                      vknVeyaTckn: '',
+                      vergiDairesi: '',
+                      adres: '',
+                      email: '',
+                      telefon: ''
+                    };
+                    setCustomers(prev => [...prev, newCustomer]);
+                  }}>
+                    <Plus className="w-4 h-4" />
+                    Yeni Müşteri
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Müşteri yönetimi geliştirilmekte...</p>
-                </div>
+                {customers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Henüz müşteri kartı eklenmemiş.</p>
+                    <p className="text-sm">Başlamak için "Yeni Müşteri" butonunu kullanın.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {customers.map((customer) => (
+                      <Card key={customer.id} className="p-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <Label>Müşteri Tipi</Label>
+                              <Select 
+                                value={customer.tip} 
+                                onValueChange={(value: 'bireysel' | 'kurumsal') => 
+                                  setCustomers(prev => prev.map(c => 
+                                    c.id === customer.id ? { ...c, tip: value } : c
+                                  ))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="kurumsal">Kurumsal</SelectItem>
+                                  <SelectItem value="bireysel">Bireysel</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label>{customer.tip === 'bireysel' ? 'Ad Soyad' : 'Ünvan'}</Label>
+                              <Input 
+                                value={customer.unvanVeyaAdSoyad}
+                                onChange={(e) => 
+                                  setCustomers(prev => prev.map(c => 
+                                    c.id === customer.id ? { ...c, unvanVeyaAdSoyad: e.target.value } : c
+                                  ))
+                                }
+                                placeholder={customer.tip === 'bireysel' ? 'Ahmet Yılmaz' : 'ABC Ltd. Şti.'}
+                              />
+                            </div>
+                            <div>
+                              <Label>{customer.tip === 'bireysel' ? 'TCKN' : 'VKN'}</Label>
+                              <Input 
+                                value={customer.vknVeyaTckn}
+                                onChange={(e) => 
+                                  setCustomers(prev => prev.map(c => 
+                                    c.id === customer.id ? { ...c, vknVeyaTckn: e.target.value } : c
+                                  ))
+                                }
+                                placeholder={customer.tip === 'bireysel' ? '12345678901' : '1234567890'}
+                                maxLength={customer.tip === 'bireysel' ? 11 : 10}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {customer.tip === 'kurumsal' && (
+                              <div>
+                                <Label>Vergi Dairesi</Label>
+                                <Input 
+                                  value={customer.vergiDairesi || ''}
+                                  onChange={(e) => 
+                                    setCustomers(prev => prev.map(c => 
+                                      c.id === customer.id ? { ...c, vergiDairesi: e.target.value } : c
+                                    ))
+                                  }
+                                  placeholder="Beyoğlu"
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <Label>E-posta</Label>
+                              <Input 
+                                type="email"
+                                value={customer.email}
+                                onChange={(e) => 
+                                  setCustomers(prev => prev.map(c => 
+                                    c.id === customer.id ? { ...c, email: e.target.value } : c
+                                  ))
+                                }
+                                placeholder="ornek@email.com"
+                              />
+                            </div>
+                            <div>
+                              <Label>Telefon</Label>
+                              <Input 
+                                value={customer.telefon}
+                                onChange={(e) => 
+                                  setCustomers(prev => prev.map(c => 
+                                    c.id === customer.id ? { ...c, telefon: e.target.value } : c
+                                  ))
+                                }
+                                placeholder="+90 555 123 4567"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Adres</Label>
+                            <div className="flex gap-2">
+                              <Textarea 
+                                value={customer.adres}
+                                onChange={(e) => 
+                                  setCustomers(prev => prev.map(c => 
+                                    c.id === customer.id ? { ...c, adres: e.target.value } : c
+                                  ))
+                                }
+                                placeholder="Tam adres bilgisi..."
+                                rows={2}
+                                className="flex-1"
+                              />
+                              <div className="flex flex-col gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setCurrentInvoice(prev => ({
+                                      ...prev,
+                                      alici: customer
+                                    }));
+                                    setActiveTab('fatura');
+                                    toast({
+                                      title: "Müşteri Seçildi",
+                                      description: "Müşteri fatura formuna aktarıldı."
+                                    });
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  Seç
+                                </Button>
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={() => 
+                                    setCustomers(prev => prev.filter(c => c.id !== customer.id))
+                                  }
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Settings Tab */}
-          <TabsContent value="ayarlar" className="animate-slide-up">
+          <TabsContent value="ayarlar" className="space-y-6 animate-slide-up">
             <Card className="shadow-soft">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -984,93 +1302,40 @@ const InvoiceApp: React.FC = () => {
                   Firma Ayarları
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Firma Adı</Label>
-                      <Input 
-                        value={company.firmaAdi}
-                        onChange={(e) => setCompany(prev => ({ ...prev, firmaAdi: e.target.value }))}
-                        placeholder="Firma adınız"
-                      />
-                    </div>
-                    <div>
-                      <Label>VKN</Label>
-                      <Input 
-                        value={company.vkn}
-                        onChange={(e) => setCompany(prev => ({ ...prev, vkn: e.target.value }))}
-                        placeholder="1234567890"
-                        maxLength={10}
-                      />
-                    </div>
-                    <div>
-                      <Label>Vergi Dairesi</Label>
-                      <Input 
-                        value={company.vergiDairesi}
-                        onChange={(e) => setCompany(prev => ({ ...prev, vergiDairesi: e.target.value }))}
-                        placeholder="Vergi dairesi adı"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Fatura Seri</Label>
-                      <Input 
-                        value={company.seri}
-                        onChange={(e) => setCompany(prev => ({ ...prev, seri: e.target.value }))}
-                        placeholder="A"
-                        maxLength={3}
-                      />
-                    </div>
-                    <div>
-                      <Label>Sıradaki Fatura No</Label>
-                      <Input 
-                        type="number"
-                        value={company.sira}
-                        onChange={(e) => setCompany(prev => ({ ...prev, sira: parseInt(e.target.value) || 1 }))}
-                        min={1}
-                      />
-                    </div>
-                    <div>
-                      <Label>Varsayılan KDV (%)</Label>
-                      <Select 
-                        value={company.varsayilanKdv.toString()} 
-                        onValueChange={(value) => setCompany(prev => ({ ...prev, varsayilanKdv: parseInt(value) }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">0</SelectItem>
-                          <SelectItem value="1">1</SelectItem>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="20">20</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Adres</Label>
-                  <Textarea 
-                    value={company.adres}
-                    onChange={(e) => setCompany(prev => ({ ...prev, adres: e.target.value }))}
-                    placeholder="Firma adresi..."
-                    rows={3}
-                  />
-                </div>
-
+              <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Firma Adı</Label>
+                    <Input 
+                      value={company.firmaAdi}
+                      onChange={(e) => setCompany(prev => ({ ...prev, firmaAdi: e.target.value }))}
+                      placeholder="Örnek İşletme"
+                    />
+                  </div>
+                  <div>
+                    <Label>VKN</Label>
+                    <Input 
+                      value={company.vkn}
+                      onChange={(e) => setCompany(prev => ({ ...prev, vkn: e.target.value }))}
+                      placeholder="1234567890"
+                      maxLength={10}
+                    />
+                  </div>
+                  <div>
+                    <Label>Vergi Dairesi</Label>
+                    <Input 
+                      value={company.vergiDairesi}
+                      onChange={(e) => setCompany(prev => ({ ...prev, vergiDairesi: e.target.value }))}
+                      placeholder="Beyoğlu"
+                    />
+                  </div>
                   <div>
                     <Label>E-posta</Label>
                     <Input 
                       type="email"
                       value={company.email}
                       onChange={(e) => setCompany(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="info@firma.com"
+                      placeholder="info@ornek.com.tr"
                     />
                   </div>
                   <div>
@@ -1081,17 +1346,87 @@ const InvoiceApp: React.FC = () => {
                       placeholder="+90 212 555 0123"
                     />
                   </div>
+                  <div>
+                    <Label>Para Birimi</Label>
+                    <Select 
+                      value={company.paraBirimi} 
+                      onValueChange={(value) => setCompany(prev => ({ ...prev, paraBirimi: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TRY">TRY - Türk Lirası</SelectItem>
+                        <SelectItem value="USD">USD - ABD Doları</SelectItem>
+                        <SelectItem value="EUR">EUR - Euro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-
-                <div className="flex justify-end pt-4">
+                
+                <div>
+                  <Label>Adres</Label>
+                  <Textarea 
+                    value={company.adres}
+                    onChange={(e) => setCompany(prev => ({ ...prev, adres: e.target.value }))}
+                    placeholder="İstiklal Cad. No:1, Beyoğlu/İstanbul"
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Fatura Serisi</Label>
+                    <Input 
+                      value={company.seri}
+                      onChange={(e) => setCompany(prev => ({ ...prev, seri: e.target.value.toUpperCase() }))}
+                      placeholder="A"
+                      maxLength={3}
+                    />
+                  </div>
+                  <div>
+                    <Label>Sıra Numarası</Label>
+                    <Input 
+                      type="number"
+                      value={company.sira}
+                      onChange={(e) => setCompany(prev => ({ ...prev, sira: parseInt(e.target.value) || 1 }))}
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <Label>Varsayılan KDV (%)</Label>
+                    <Select 
+                      value={company.varsayilanKdv.toString()} 
+                      onValueChange={(value) => setCompany(prev => ({ ...prev, varsayilanKdv: parseInt(value) }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">0</SelectItem>
+                        <SelectItem value="1">1</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t">
                   <Button 
-                    variant="success"
+                    variant="success" 
                     onClick={() => {
+                      // Update current invoice's seller info when company settings change
+                      setCurrentInvoice(prev => ({
+                        ...prev,
+                        satici: company
+                      }));
                       toast({
-                        title: "Başarılı",
-                        description: "Firma ayarları kaydedildi.",
+                        title: "Ayarlar Kaydedildi",
+                        description: "Firma ayarları başarıyla güncellendi."
                       });
                     }}
+                    className="w-full"
                   >
                     <Save className="w-4 h-4" />
                     Ayarları Kaydet
