@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -110,32 +110,81 @@ const InvoiceApp: React.FC = () => {
   const { toast } = useToast();
   const printRef = useRef<HTMLDivElement>(null);
 
-  // Default company settings
-  const [company, setCompany] = useState<Company>({
-    firmaAdi: 'Örnek İşletme',
-    vkn: '1234567890',
-    vergiDairesi: 'Beyoğlu',
-    adres: 'İstiklal Cad. No:1, Beyoğlu/İstanbul',
-    email: 'info@ornek.com.tr',
-    telefon: '+90 212 555 0123',
-    seri: 'A',
-    sira: 1,
-    paraBirimi: 'TRY',
-    varsayilanKdv: 20
+  // Initialize company settings from localStorage
+  const [company, setCompany] = useState<Company>(() => {
+    try {
+      const saved = localStorage.getItem('tr-invoice-company');
+      return saved ? JSON.parse(saved) : {
+        firmaAdi: 'Örnek İşletme',
+        vkn: '1234567890',
+        vergiDairesi: 'Beyoğlu',
+        adres: 'İstiklal Cad. No:1, Beyoğlu/İstanbul',
+        email: 'info@ornek.com.tr',
+        telefon: '+90 212 555 0123',
+        seri: 'A',
+        sira: 1,
+        paraBirimi: 'TRY',
+        varsayilanKdv: 20
+      };
+    } catch {
+      return {
+        firmaAdi: 'Örnek İşletme',
+        vkn: '1234567890',
+        vergiDairesi: 'Beyoğlu',
+        adres: 'İstiklal Cad. No:1, Beyoğlu/İstanbul',
+        email: 'info@ornek.com.tr',
+        telefon: '+90 212 555 0123',
+        seri: 'A',
+        sira: 1,
+        paraBirimi: 'TRY',
+        varsayilanKdv: 20
+      };
+    }
   });
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: '1',
-      ad: 'Danışmanlık Hizmeti',
-      birim: 'Saat',
-      birimFiyat: 500,
-      kdvOran: 20
+  // Initialize data from localStorage
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    try {
+      const saved = localStorage.getItem('tr-invoice-customers');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
     }
-  ]);
+  });
   
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('tr-invoice-products');
+      return saved ? JSON.parse(saved) : [
+        {
+          id: '1',
+          ad: 'Danışmanlık Hizmeti',
+          birim: 'Saat',
+          birimFiyat: 500,
+          kdvOran: 20
+        }
+      ];
+    } catch {
+      return [
+        {
+          id: '1',
+          ad: 'Danışmanlık Hizmeti',
+          birim: 'Saat',
+          birimFiyat: 500,
+          kdvOran: 20
+        }
+      ];
+    }
+  });
+  
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    try {
+      const saved = localStorage.getItem('tr-invoice-invoices');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [currentInvoice, setCurrentInvoice] = useState<Invoice>({
     id: '',
     faturaNo: '',
@@ -163,6 +212,39 @@ const InvoiceApp: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('fatura');
   const [showPreview, setShowPreview] = useState(false);
+
+  // Save data to localStorage whenever state changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('tr-invoice-company', JSON.stringify(company));
+    } catch (error) {
+      console.error('Error saving company data:', error);
+    }
+  }, [company]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tr-invoice-customers', JSON.stringify(customers));
+    } catch (error) {
+      console.error('Error saving customers data:', error);
+    }
+  }, [customers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tr-invoice-products', JSON.stringify(products));
+    } catch (error) {
+      console.error('Error saving products data:', error);
+    }
+  }, [products]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tr-invoice-invoices', JSON.stringify(invoices));
+    } catch (error) {
+      console.error('Error saving invoices data:', error);
+    }
+  }, [invoices]);
 
   // Calculate invoice totals
   const calculateInvoice = () => {
@@ -224,13 +306,53 @@ const InvoiceApp: React.FC = () => {
 
   // Update line in invoice
   const updateInvoiceLine = (lineId: string, field: keyof InvoiceLine, value: any) => {
+    setCurrentInvoice(prev => {
+      const updatedInvoice = {
+        ...prev,
+        satirlar: prev.satirlar.map(line => 
+          line.id === lineId ? { ...line, [field]: value } : line
+        )
+      };
+      // Trigger calculation after state update
+      setTimeout(() => calculateInvoiceForState(updatedInvoice), 0);
+      return updatedInvoice;
+    });
+  };
+
+  // Calculate invoice helper for specific state
+  const calculateInvoiceForState = (invoiceState: Invoice) => {
+    let araToplam = 0;
+    
+    const updatedLines = invoiceState.satirlar.map(line => {
+      const satirAraToplam = line.adet * line.birimFiyat;
+      const satirIskontoTutar = satirAraToplam * (line.iskontoYuzde / 100);
+      const satirNetTutar = satirAraToplam - satirIskontoTutar;
+      const satirKdvTutar = satirNetTutar * (line.kdvOran / 100);
+      const satirToplam = satirNetTutar + satirKdvTutar;
+
+      araToplam += satirNetTutar;
+
+      return {
+        ...line,
+        araToplam: satirAraToplam,
+        kdvTutar: satirKdvTutar,
+        toplam: satirToplam
+      };
+    });
+
+    const belgeIskontoTutar = araToplam * (invoiceState.belgeBazliIskontoYuzde / 100);
+    const netAraToplam = araToplam - belgeIskontoTutar;
+    const kdvToplam = updatedLines.reduce((total, line) => total + line.kdvTutar, 0);
+    const genelToplam = netAraToplam + kdvToplam;
+
     setCurrentInvoice(prev => ({
       ...prev,
-      satirlar: prev.satirlar.map(line => 
-        line.id === lineId ? { ...line, [field]: value } : line
-      )
+      satirlar: updatedLines,
+      araToplam: netAraToplam,
+      iskontoToplam: belgeIskontoTutar,
+      kdvToplam,
+      genelToplam: Math.round(genelToplam * 100) / 100
     }));
-    setTimeout(calculateInvoice, 0);
   };
 
   // Remove line from invoice
@@ -247,6 +369,35 @@ const InvoiceApp: React.FC = () => {
     const year = new Date().getFullYear();
     const paddedSira = company.sira.toString().padStart(6, '0');
     return `${company.seri}${year}-${paddedSira}`;
+  };
+
+  // Reset invoice form
+  const resetInvoiceForm = () => {
+    setCurrentInvoice({
+      id: '',
+      faturaNo: '',
+      tarih: new Date().toISOString().split('T')[0],
+      satici: company,
+      alici: {
+        id: '',
+        tip: 'kurumsal',
+        unvanVeyaAdSoyad: '',
+        vknVeyaTckn: '',
+        vergiDairesi: '',
+        adres: '',
+        email: '',
+        telefon: ''
+      },
+      satirlar: [],
+      belgeBazliIskontoYuzde: 0,
+      araToplam: 0,
+      iskontoToplam: 0,
+      kdvToplam: 0,
+      genelToplam: 0,
+      not: '',
+      durum: 'taslak'
+    });
+    setShowPreview(false);
   };
 
   // Save invoice
@@ -289,42 +440,57 @@ const InvoiceApp: React.FC = () => {
 
     if (status === 'tamamlandi') {
       setCompany(prev => ({ ...prev, sira: prev.sira + 1 }));
+      // Reset form after completion
+      setTimeout(() => {
+        resetInvoiceForm();
+      }, 1500);
     }
 
     toast({
       title: "Başarılı",
-      description: status === 'taslak' ? 'Fatura taslak olarak kaydedildi.' : 'Fatura tamamlandı.',
+      description: status === 'taslak' ? 'Fatura taslak olarak kaydedildi.' : 'Fatura tamamlandı ve yeni fatura için form sıfırlandı.',
     });
   };
 
   // Print invoice
   const printInvoice = () => {
     if (printRef.current) {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Fatura - ${currentInvoice.faturaNo}</title>
-              <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
-                .invoice-header { text-align: center; margin-bottom: 30px; }
-                .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
-                .invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-                .invoice-table th, .invoice-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                .invoice-table th { background-color: #f5f5f5; }
-                .totals { margin-top: 20px; text-align: right; }
-                .currency { font-weight: bold; color: #d4af37; }
-                @media print { body { margin: 0; } }
-              </style>
-            </head>
-            <body>
-              ${printRef.current.innerHTML}
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
+      try {
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          const invoiceNumber = currentInvoice.faturaNo || generateInvoiceNumber();
+          printWindow.document.write(`
+            <html>
+              <head>
+                <title>Fatura - ${invoiceNumber}</title>
+                <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; }
+                  .invoice-header { text-align: center; margin-bottom: 30px; }
+                  .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+                  .invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                  .invoice-table th, .invoice-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                  .invoice-table th { background-color: #f5f5f5; }
+                  .totals { margin-top: 20px; text-align: right; }
+                  .currency { font-weight: bold; color: #d4af37; }
+                  @media print { body { margin: 0; } }
+                </style>
+              </head>
+              <body>
+                ${printRef.current.innerHTML}
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+          printWindow.focus();
+          printWindow.print();
+        }
+      } catch (error) {
+        console.error('Print error:', error);
+        toast({
+          title: "Yazdırma Hatası",
+          description: "Fatura yazdırılırken bir hata oluştu.",
+          variant: "destructive",
+        });
       }
     }
   };
