@@ -536,48 +536,168 @@ const InvoiceApp: React.FC = () => {
             <meta charset="UTF-8">
             <title>Fatura - ${invoiceNumber.replace(/[<>]/g, '')}</title>
             <style>
+              * { 
+                box-sizing: border-box; 
+                margin: 0; 
+                padding: 0; 
+              }
               body { 
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                margin: 20px; 
-                line-height: 1.4;
+                margin: 0; 
+                padding: 20px;
+                line-height: 1.6;
+                color: #333;
+                background: white;
+              }
+              .print-content {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                padding: 40px;
+                border-radius: 8px;
               }
               .invoice-header { 
                 text-align: center; 
-                margin-bottom: 30px; 
+                margin-bottom: 40px; 
                 padding-bottom: 20px;
-                border-bottom: 2px solid #333;
+                border-bottom: 3px solid #0ea5e9;
               }
-              .invoice-details { 
-                display: flex; 
-                justify-content: space-between; 
-                margin-bottom: 30px; 
+              .invoice-header h1 {
+                font-size: 36px;
+                font-weight: bold;
+                color: #0ea5e9;
+                margin-bottom: 8px;
+                letter-spacing: 2px;
+              }
+              .invoice-header .invoice-number {
+                font-size: 18px;
+                font-weight: 600;
+                margin-bottom: 4px;
+              }
+              .invoice-header .invoice-date {
+                color: #666;
+                font-size: 14px;
+              }
+              .company-customer-grid { 
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 40px;
+                margin-bottom: 40px; 
+              }
+              .info-section h3 {
+                font-size: 18px;
+                font-weight: bold;
+                color: #0ea5e9;
+                margin-bottom: 16px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid #e5e7eb;
+              }
+              .info-section .company-name,
+              .info-section .customer-name {
+                font-weight: 600;
+                font-size: 16px;
+                margin-bottom: 8px;
+              }
+              .info-section div {
+                margin-bottom: 4px;
+                font-size: 14px;
+                line-height: 1.5;
               }
               .invoice-table { 
                 width: 100%; 
                 border-collapse: collapse; 
-                margin-bottom: 30px; 
-              }
-              .invoice-table th, .invoice-table td { 
-                border: 1px solid #ddd; 
-                padding: 12px 8px; 
-                text-align: left; 
+                margin-bottom: 30px;
+                font-size: 13px;
               }
               .invoice-table th { 
-                background-color: #f8f9fa; 
+                background: linear-gradient(135deg, #0ea5e9, #0284c7);
+                color: white;
                 font-weight: 600;
+                padding: 14px 10px;
+                text-align: center;
+                border: none;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
               }
-              .totals { 
-                margin-top: 20px; 
+              .invoice-table td { 
+                border: 1px solid #e5e7eb;
+                padding: 12px 10px;
+                vertical-align: middle;
+              }
+              .invoice-table tr:nth-child(even) {
+                background-color: #f9fafb;
+              }
+              .invoice-table tr:hover {
+                background-color: #f3f4f6;
+              }
+              .invoice-table .text-right { 
                 text-align: right; 
-                font-size: 14px;
+              }
+              .invoice-table .text-center { 
+                text-align: center; 
+              }
+              .totals-section { 
+                margin-top: 30px;
+                display: flex;
+                justify-content: flex-end;
+              }
+              .totals-table {
+                min-width: 300px;
+                border-collapse: collapse;
+              }
+              .totals-table td {
+                padding: 8px 16px;
+                border-bottom: 1px solid #e5e7eb;
+              }
+              .totals-table .label {
+                text-align: left;
+                font-weight: 500;
+              }
+              .totals-table .amount {
+                text-align: right;
+                font-weight: 600;
+                min-width: 120px;
+              }
+              .totals-table .discount {
+                color: #dc2626;
+              }
+              .totals-table .total-row {
+                border-top: 2px solid #0ea5e9;
+                border-bottom: 3px double #0ea5e9;
+                background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+              }
+              .totals-table .total-row td {
+                font-size: 16px;
+                font-weight: bold;
+                color: #0ea5e9;
+                padding: 12px 16px;
               }
               .currency { 
-                font-weight: bold; 
-                color: #c62828; 
+                font-family: 'Courier New', monospace;
+                font-weight: 600;
               }
               @media print { 
-                body { margin: 0; } 
-                .no-print { display: none !important; }
+                body { 
+                  margin: 0; 
+                  padding: 10px;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                } 
+                .print-content {
+                  padding: 20px;
+                  box-shadow: none;
+                }
+                .no-print { 
+                  display: none !important; 
+                }
+                .invoice-table th {
+                  background: #0ea5e9 !important;
+                  color: white !important;
+                }
+                .totals-table .total-row {
+                  background: #f0f9ff !important;
+                }
               }
             </style>
           </head>
@@ -905,33 +1025,33 @@ const InvoiceApp: React.FC = () => {
                             <tr key={line.id} className="border-b">
                               <td className="p-2">
                                 <div className="space-y-2">
-                                  <Select 
-                                    value={line.urunAdi}
-                                   onValueChange={(productName) => {
-                                     if (!productName) return;
-                                     
-                                     const selectedProduct = products.find(p => p.ad === productName);
-                                     if (selectedProduct) {
-                                       updateInvoiceLine(line.id, 'urunAdi', selectedProduct.ad);
-                                       updateInvoiceLine(line.id, 'birim', selectedProduct.birim);
-                                       updateInvoiceLine(line.id, 'birimFiyat', selectedProduct.birimFiyat);
-                                       updateInvoiceLine(line.id, 'kdvOran', selectedProduct.kdvOran);
-                                     } else {
-                                       updateInvoiceLine(line.id, 'urunAdi', productName);
-                                     }
-                                   }}
-                                  >
-                                    <SelectTrigger className="min-w-[200px]">
-                                      <SelectValue placeholder="Ürün seçin veya manuel girin" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {products.map((product) => (
-                                        <SelectItem key={product.id} value={product.ad}>
-                                          {product.ad} - {formatTurkishCurrency(product.birimFiyat)}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                   <Select 
+                                     value={line.urunAdi || ""}
+                                    onValueChange={(productName) => {
+                                      if (!productName) return;
+                                      
+                                      const selectedProduct = products.find(p => p.ad === productName);
+                                      if (selectedProduct) {
+                                        updateInvoiceLine(line.id, 'urunAdi', selectedProduct.ad);
+                                        updateInvoiceLine(line.id, 'birim', selectedProduct.birim);
+                                        updateInvoiceLine(line.id, 'birimFiyat', selectedProduct.birimFiyat);
+                                        updateInvoiceLine(line.id, 'kdvOran', selectedProduct.kdvOran);
+                                      } else {
+                                        updateInvoiceLine(line.id, 'urunAdi', productName);
+                                      }
+                                    }}
+                                   >
+                                     <SelectTrigger className="min-w-[200px]">
+                                       <SelectValue placeholder="Ürün seçin veya manuel girin" />
+                                     </SelectTrigger>
+                                     <SelectContent>
+                                       {products.map((product) => (
+                                         <SelectItem key={product.id} value={product.ad}>
+                                           {product.ad} - {formatTurkishCurrency(product.birimFiyat)}
+                                         </SelectItem>
+                                       ))}
+                                     </SelectContent>
+                                   </Select>
                                   <Input 
                                     value={line.urunAdi}
                                     onChange={(e) => updateInvoiceLine(line.id, 'urunAdi', e.target.value)}
@@ -1067,20 +1187,20 @@ const InvoiceApp: React.FC = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div ref={printRef} className="bg-white p-8 rounded-lg print-content">
+                  <div ref={printRef} className="print-content bg-white p-8 rounded-lg">
                     {/* Invoice Header */}
-                    <div className="text-center mb-8">
+                    <div className="invoice-header text-center mb-8">
                       <h1 className="text-3xl font-bold text-primary mb-2">FATURA</h1>
-                      <div className="text-lg font-medium">{currentInvoice.faturaNo}</div>
-                      <div className="text-muted-foreground">Tarih: {new Date(currentInvoice.tarih).toLocaleDateString('tr-TR')}</div>
+                      <div className="invoice-number text-lg font-medium">{currentInvoice.faturaNo}</div>
+                      <div className="invoice-date text-muted-foreground">Tarih: {new Date(currentInvoice.tarih).toLocaleDateString('tr-TR')}</div>
                     </div>
 
                     {/* Company and Customer Info */}
-                    <div className="grid grid-cols-2 gap-8 mb-8">
-                      <div>
+                    <div className="company-customer-grid grid grid-cols-2 gap-8 mb-8">
+                      <div className="info-section">
                         <h3 className="font-bold text-lg mb-3 text-primary">Satıcı Bilgileri</h3>
                         <div className="space-y-1">
-                          <div className="font-medium">{company.firmaAdi}</div>
+                          <div className="company-name font-medium">{company.firmaAdi}</div>
                           <div>VKN: {company.vkn}</div>
                           <div>Vergi Dairesi: {company.vergiDairesi}</div>
                           <div>{company.adres}</div>
@@ -1088,10 +1208,10 @@ const InvoiceApp: React.FC = () => {
                           <div>{company.telefon}</div>
                         </div>
                       </div>
-                      <div>
+                      <div className="info-section">
                         <h3 className="font-bold text-lg mb-3 text-primary">Alıcı Bilgileri</h3>
                         <div className="space-y-1">
-                          <div className="font-medium">{currentInvoice.alici.unvanVeyaAdSoyad}</div>
+                          <div className="customer-name font-medium">{currentInvoice.alici.unvanVeyaAdSoyad}</div>
                           <div>
                             {currentInvoice.alici.tip === 'bireysel' ? 'TCKN' : 'VKN'}: {currentInvoice.alici.vknVeyaTckn}
                           </div>
@@ -1106,30 +1226,30 @@ const InvoiceApp: React.FC = () => {
                     </div>
 
                     {/* Invoice Table */}
-                    <table className="w-full border-collapse border border-gray-300 mb-6">
+                    <table className="invoice-table w-full border-collapse mb-6">
                       <thead>
-                        <tr className="bg-gray-100">
-                          <th className="border border-gray-300 p-2 text-left">Ürün/Hizmet</th>
-                          <th className="border border-gray-300 p-2 text-center">Adet</th>
-                          <th className="border border-gray-300 p-2 text-center">Birim</th>
-                          <th className="border border-gray-300 p-2 text-right">Birim Fiyat</th>
-                          <th className="border border-gray-300 p-2 text-right">İskonto %</th>
-                          <th className="border border-gray-300 p-2 text-right">KDV %</th>
-                          <th className="border border-gray-300 p-2 text-right">Toplam</th>
+                        <tr>
+                          <th className="text-left">Ürün/Hizmet</th>
+                          <th className="text-center">Adet</th>
+                          <th className="text-center">Birim</th>
+                          <th className="text-right">Birim Fiyat</th>
+                          <th className="text-right">İskonto %</th>
+                          <th className="text-right">KDV %</th>
+                          <th className="text-right">Toplam</th>
                         </tr>
                       </thead>
                       <tbody>
                         {currentInvoice.satirlar.map((line) => (
                           <tr key={line.id}>
-                            <td className="border border-gray-300 p-2">{line.urunAdi}</td>
-                            <td className="border border-gray-300 p-2 text-center">{line.adet}</td>
-                            <td className="border border-gray-300 p-2 text-center">{line.birim}</td>
-                            <td className="border border-gray-300 p-2 text-right turkish-currency">
+                            <td>{line.urunAdi}</td>
+                            <td className="text-center">{line.adet}</td>
+                            <td className="text-center">{line.birim}</td>
+                            <td className="text-right currency">
                               {formatTurkishCurrency(line.birimFiyat)}
                             </td>
-                            <td className="border border-gray-300 p-2 text-right">%{line.iskontoYuzde}</td>
-                            <td className="border border-gray-300 p-2 text-right">%{line.kdvOran}</td>
-                            <td className="border border-gray-300 p-2 text-right turkish-currency font-medium">
+                            <td className="text-right">%{line.iskontoYuzde}</td>
+                            <td className="text-right">%{line.kdvOran}</td>
+                            <td className="text-right currency">
                               {formatTurkishCurrency(line.toplam)}
                             </td>
                           </tr>
@@ -1138,29 +1258,31 @@ const InvoiceApp: React.FC = () => {
                     </table>
 
                     {/* Totals */}
-                    <div className="flex justify-end">
-                      <div className="w-80 space-y-2">
-                        <div className="flex justify-between">
-                          <span>Ara Toplam:</span>
-                          <span className="turkish-currency">{formatTurkishCurrency(currentInvoice.araToplam)}</span>
-                        </div>
-                        {currentInvoice.iskontoToplam > 0 && (
-                          <div className="flex justify-between text-destructive">
-                            <span>İskonto:</span>
-                            <span className="turkish-currency">-{formatTurkishCurrency(currentInvoice.iskontoToplam)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span>KDV Toplam:</span>
-                          <span className="turkish-currency">{formatTurkishCurrency(currentInvoice.kdvToplam)}</span>
-                        </div>
-                        <div className="flex justify-between text-xl font-bold border-t pt-2">
-                          <span>Genel Toplam:</span>
-                          <span className="turkish-currency text-primary">
-                            {formatTurkishCurrency(currentInvoice.genelToplam)}
-                          </span>
-                        </div>
-                      </div>
+                    <div className="totals-section">
+                      <table className="totals-table">
+                        <tbody>
+                          <tr>
+                            <td className="label">Ara Toplam:</td>
+                            <td className="amount currency">{formatTurkishCurrency(currentInvoice.araToplam)}</td>
+                          </tr>
+                          {currentInvoice.iskontoToplam > 0 && (
+                            <tr>
+                              <td className="label">İskonto:</td>
+                              <td className="amount currency discount">-{formatTurkishCurrency(currentInvoice.iskontoToplam)}</td>
+                            </tr>
+                          )}
+                          <tr>
+                            <td className="label">KDV Toplam:</td>
+                            <td className="amount currency">{formatTurkishCurrency(currentInvoice.kdvToplam)}</td>
+                          </tr>
+                          <tr className="total-row">
+                            <td className="label">Genel Toplam:</td>
+                            <td className="amount currency">
+                              {formatTurkishCurrency(currentInvoice.genelToplam)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
 
                     {/* Notes */}
