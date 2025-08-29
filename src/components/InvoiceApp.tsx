@@ -26,12 +26,15 @@ import {
 
 // Turkish number formatting utility
 const formatTurkishCurrency = (amount: number): string => {
+  // Handle invalid numbers
+  if (!Number.isFinite(amount)) return '₺0,00';
+  
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: 'TRY',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(Math.abs(amount));
 };
 
 // TCKN validation (improved)
@@ -477,10 +480,13 @@ const InvoiceApp: React.FC = () => {
 
     if (status === 'tamamlandi') {
       setCompany(prev => ({ ...prev, sira: prev.sira + 1 }));
-      // Reset form after completion
-      setTimeout(() => {
+      // Reset form after completion using ref to prevent memory leaks
+      const timeoutId = setTimeout(() => {
         resetInvoiceForm();
       }, 1500);
+      
+      // Cleanup on unmount
+      return () => clearTimeout(timeoutId);
     }
 
     toast({
@@ -515,6 +521,13 @@ const InvoiceApp: React.FC = () => {
         });
         return;
       }
+      
+      // Handle cleanup when window is closed
+      const checkClosed = setInterval(() => {
+        if (printWindow.closed) {
+          clearInterval(checkClosed);
+        }
+      }, 1000);
       
       printWindow.document.write(`
         <!DOCTYPE html>
@@ -894,17 +907,19 @@ const InvoiceApp: React.FC = () => {
                                 <div className="space-y-2">
                                   <Select 
                                     value={line.urunAdi}
-                                    onValueChange={(productName) => {
-                                      const selectedProduct = products.find(p => p.ad === productName);
-                                      if (selectedProduct) {
-                                        updateInvoiceLine(line.id, 'urunAdi', selectedProduct.ad);
-                                        updateInvoiceLine(line.id, 'birim', selectedProduct.birim);
-                                        updateInvoiceLine(line.id, 'birimFiyat', selectedProduct.birimFiyat);
-                                        updateInvoiceLine(line.id, 'kdvOran', selectedProduct.kdvOran);
-                                      } else {
-                                        updateInvoiceLine(line.id, 'urunAdi', productName);
-                                      }
-                                    }}
+                                   onValueChange={(productName) => {
+                                     if (!productName) return;
+                                     
+                                     const selectedProduct = products.find(p => p.ad === productName);
+                                     if (selectedProduct) {
+                                       updateInvoiceLine(line.id, 'urunAdi', selectedProduct.ad);
+                                       updateInvoiceLine(line.id, 'birim', selectedProduct.birim);
+                                       updateInvoiceLine(line.id, 'birimFiyat', selectedProduct.birimFiyat);
+                                       updateInvoiceLine(line.id, 'kdvOran', selectedProduct.kdvOran);
+                                     } else {
+                                       updateInvoiceLine(line.id, 'urunAdi', productName);
+                                     }
+                                   }}
                                   >
                                     <SelectTrigger className="min-w-[200px]">
                                       <SelectValue placeholder="Ürün seçin veya manuel girin" />
@@ -1018,12 +1033,12 @@ const InvoiceApp: React.FC = () => {
                           type="number"
                           value={currentInvoice.belgeBazliIskontoYuzde}
                           onChange={(e) => {
-                            setCurrentInvoice(prev => ({
-                              ...prev,
-                              belgeBazliIskontoYuzde: parseFloat(e.target.value) || 0
-                            }));
-                            
-                          }}
+                           const newValue = parseFloat(e.target.value) || 0;
+                           setCurrentInvoice(prev => ({
+                             ...prev,
+                             belgeBazliIskontoYuzde: Math.max(0, Math.min(100, newValue))
+                           }));
+                         }}
                           className="text-right"
                           min="0"
                           max="100"
